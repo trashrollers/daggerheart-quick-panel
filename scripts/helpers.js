@@ -28,11 +28,6 @@ export const HUD_PLACEMENTS = [
 ];
 
 
-export const HUD_LANGUAGES = [
-  ["auto", "DQP.Language.Auto"],
-  ["en", "DQP.Language.English"],
-  ["ru", "DQP.Language.Russian"],
-];
 export function localize(key, data) {
   return data ? game.i18n.format(key, data) : game.i18n.localize(key);
 }
@@ -46,21 +41,6 @@ export function asArray(value) {
   if (Array.isArray(value)) return value;
   if (typeof value.values === "function") return Array.from(value.values());
   return Array.from(value);
-}
-
-export function hasRussianDaggerheartTranslation() {
-  return asArray(game.modules).some((module) => {
-    if (!module?.active) return false;
-    const manifest = module.toObject?.() ?? module;
-    const identity = [manifest.id, manifest.title, manifest.description].filter(Boolean).join(" ").toLowerCase();
-    const systems = asArray(manifest.relationships?.systems).map((system) => system?.id ?? system);
-    const targetsDaggerheart = systems.includes("daggerheart") || identity.includes("daggerheart");
-    const declaresRussian = asArray(manifest.languages).some((language) =>
-      String(language?.lang ?? language?.id ?? language).toLowerCase().startsWith("ru")
-    );
-    const looksRussian = /(?:russian|русск|перевод|(?:^|[-_.\s])ru(?:$|[-_.\s]))/iu.test(identity);
-    return targetsDaggerheart && (declaresRussian || looksRussian);
-  });
 }
 
 export function escapeHTML(value) {

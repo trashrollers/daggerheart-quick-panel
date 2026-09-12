@@ -93,7 +93,7 @@ assert(sources.includes("patchActorUpdate") && sources.includes("patchItemUpdate
 assert(read("styles/panel.css").includes("dqp-item-used") && read("styles/panel.css").includes("dqp-pip-mark"), "Action feedback animations are missing");
 assert(sources.includes("HUD_THEMES") && sources.includes('data-action="set-theme"') && sources.includes("hudTheme"), "Personal HUD theme selector is missing");
 assert(sources.includes("HUD_PLACEMENTS") && sources.includes('data-action="set-placement"') && sources.includes("hudPlacement"), "Personal centered/side HUD selector is missing");
-assert(sources.includes("HUD_LANGUAGES") && sources.includes("hasRussianDaggerheartTranslation") && sources.includes("applyLanguage") && sources.includes("hudLanguage"), "HUD translation-module detection and personal language override are missing");
+assert(sources.includes("applyLanguage") && sources.includes("game.i18n.lang") && !sources.includes("hudLanguage"), "HUD language must follow Foundry's Language Preference without a separate override");
 for (const theme of ["minimal", "arcane", "sacred", "monochrome"]) {
   assert(read("styles/panel.css").includes(`data-theme="${theme}"`), `Theme stylesheet is missing: ${theme}`);
 }

@@ -1,4 +1,4 @@
-import { MODULE_ID, TEMPLATE, ITEM_PARTIAL, STRESS_OVERFLOW_PATCH, TRAITS, ITEM_TYPE_ORDER, HUD_THEMES, HUD_PLACEMENTS, HUD_LANGUAGES, localize, clamp, asArray, escapeHTML, changePaths, installStressOverflowCostRule, plainText } from "./helpers.js";
+import { MODULE_ID, TEMPLATE, ITEM_PARTIAL, STRESS_OVERFLOW_PATCH, TRAITS, ITEM_TYPE_ORDER, HUD_THEMES, HUD_PLACEMENTS, localize, clamp, asArray, escapeHTML, changePaths, installStressOverflowCostRule, plainText } from "./helpers.js";
 
 export class DaggerheartQuickPanelBase {
   constructor() {

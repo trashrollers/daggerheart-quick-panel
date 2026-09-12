@@ -1,6 +1,6 @@
 # Daggerheart Quick Panel
 
-A Foundry VTT 14 HUD module for Daggerheart 2.2.6+. Version 1.0.2 supports Foundry VTT 14 build 361 and later, with centered and left-side layouts plus native chat clearance. The interface includes complete English and Russian localization, including automatic detection of active Russian Daggerheart translation modules and a manual per-player language override. Trait names follow the active Daggerheart translation so the HUD and character sheet use the same terminology. The circular portrait preserves the complete character artwork with the same uncropped presentation used by the character sheet.
+A Foundry VTT 14 HUD module for Daggerheart 2.2.6+. Version 1.0.3 supports Foundry VTT 14 build 361 and later, with centered and left-side layouts plus native chat clearance. The interface includes complete English and Russian localization and follows Foundry's Core Language Preference without a separate HUD language override. Trait names follow the active Daggerheart translation so the HUD and character sheet use the same terminology. The circular portrait preserves the complete character artwork with the same uncropped presentation used by the character sheet.
 
 Install from Foundry's **Add-on Modules → Install Module → Manifest URL** using `https://raw.githubusercontent.com/trashrollers/daggerheart-quick-panel/main/module.json`.
 
@@ -67,4 +67,4 @@ Layout checks also cover both persistent placement modes and a right-side native
 
 ## Installation
 
-Use the manifest URL above, or extract `daggerheart-quick-panel-1.0.2.zip` into `Data/modules/daggerheart-quick-panel`. Enable Daggerheart Quick Panel in a Daggerheart world and reload the client. No actor data migration is required.
+Use the manifest URL above, or extract `daggerheart-quick-panel-1.0.3.zip` into `Data/modules/daggerheart-quick-panel`. Enable Daggerheart Quick Panel in a Daggerheart world and reload the client. No actor data migration is required.

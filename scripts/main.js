@@ -1,5 +1,5 @@
 import { DaggerheartQuickPanelBase } from "./panel-base.js";
-import { MODULE_ID, TEMPLATE, ITEM_PARTIAL, STRESS_OVERFLOW_PATCH, TRAITS, ITEM_TYPE_ORDER, HUD_THEMES, HUD_PLACEMENTS, HUD_LANGUAGES, localize, clamp, asArray, escapeHTML, changePaths, installStressOverflowCostRule, plainText, hasRussianDaggerheartTranslation } from "./helpers.js";
+import { MODULE_ID, TEMPLATE, ITEM_PARTIAL, STRESS_OVERFLOW_PATCH, TRAITS, ITEM_TYPE_ORDER, HUD_THEMES, HUD_PLACEMENTS, localize, clamp, asArray, escapeHTML, changePaths, installStressOverflowCostRule, plainText } from "./helpers.js";
 
 class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   applyPlacement() {
@@ -25,9 +25,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   }
 
   async applyLanguage(render = true) {
-    const selected = game.settings.get(MODULE_ID, "hudLanguage") || "auto";
-    const automaticRussian = String(game.i18n.lang || "").toLowerCase().startsWith("ru") || hasRussianDaggerheartTranslation();
-    const language = selected === "auto" ? (automaticRussian ? "ru" : "en") : selected;
+    const language = String(game.i18n.lang || "").toLowerCase().startsWith("ru") ? "ru" : "en";
 
     try {
       const dictionary = await this.loadLanguage(language);
@@ -825,12 +823,6 @@ Hooks.once("init", () => {
     type: String, default: "center",
     choices: Object.fromEntries(HUD_PLACEMENTS.map(([id, label]) => [id, localize(label)])),
     onChange: () => game.modules.get(MODULE_ID)?.api?.panel?.applyPlacement(),
-  });
-  game.settings.register(MODULE_ID, "hudLanguage", {
-    name: "DQP.Language.Title", hint: "DQP.Language.Hint", scope: "client", config: true,
-    type: String, default: "auto",
-    choices: Object.fromEntries(HUD_LANGUAGES.map(([id, label]) => [id, localize(label)])),
-    onChange: () => game.modules.get(MODULE_ID)?.api?.panel?.applyLanguage(),
   });
   game.settings.register(MODULE_ID, "selectedActorId", {
     scope: "client",

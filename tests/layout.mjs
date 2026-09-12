@@ -32,7 +32,7 @@ try {
   await page.evaluate(({ source, template, partial, en, ru, portrait }) => {
     const get = (object, key) => key.split('.').reduce((value, part) => value?.[part], object);
     window.languagePacks={en,ru};
-    const settings = new Map([...['hudEnabled', 'characterOpen', 'traitsOpen', 'workspaceOpen'].map(key => [key, true]), ['hudPlacement', 'center'], ['hudLanguage', 'auto']]);
+    const settings = new Map([...['hudEnabled', 'characterOpen', 'traitsOpen', 'workspaceOpen'].map(key => [key, true]), ['hudPlacement', 'center']]);
     window.calls = [];
     const item = { id:'a1', name:'Deft Maneuvers', type:'domainCard', img:portrait, system:{ actionsList:[{cost:[{key:'stress',value:2,enabled:true}]}], domainLabel:'Bone', level:1, description:'A ready ability.', async toggleVault(_event,toVault,isRecall){calls.push(`vault:${toVault}:${isRecall}`);this.inVault=toVault;} }, use:async () => calls.push('item'), sheet:{render:() => calls.push('item-sheet')} };
     const items = Array.from({length:6}, (_, index) => ({...item, id:`a${index+1}`, name:index ? `Ability ${index+1}` : item.name, system:{...item.system,inVault:index>=3}}));
@@ -491,11 +491,10 @@ try {
   await page.waitForFunction(()=>Math.abs((document.querySelector('.dqp-shell').getBoundingClientRect().left+document.querySelector('.dqp-shell').getBoundingClientRect().right)/2-innerWidth/2)<2);
   assert(await page.evaluate(()=>centeredHud===document.querySelector('.dqp-columns')));
   await page.evaluate(()=>{document.querySelector('#ui-right').remove();panel.observeLayout();});
-  // An active Russian Daggerheart translation module localizes this HUD even when Foundry itself stays English.
+  // The HUD follows Foundry's core Language Preference.
   await page.setViewportSize({width:1366,height:900});
   await page.evaluate(async()=>{
-    game.i18n.lang='en';
-    game.modules.set('daggerheart-ru',{id:'daggerheart-ru',title:'Русский перевод Daggerheart',active:true,relationships:{systems:[{id:'daggerheart'}]}});
+    game.i18n.lang='ru';
     game.i18n.translations.DAGGERHEART={CONFIG:{Traits:{
       agility:{name:'Проворность'},strength:{name:'Сила'},finesse:{name:'Искусность'},
       instinct:{name:'Инстинкт'},presence:{name:'Влияние'},knowledge:{name:'Знание'}
@@ -503,7 +502,7 @@ try {
     await panel.applyLanguage(false);
     await panel.render();
   });
-  assert.equal(await page.evaluate(()=>game.i18n.lang),'en');
+  assert.equal(await page.evaluate(()=>game.i18n.lang),'ru');
   assert.equal(await page.evaluate(()=>panel.activeLanguage),'ru');
   assert.equal((await page.locator('[data-tab="core"]').textContent()).trim(),'Игра');
   assert.equal((await page.locator('[data-tab="experiences"]').textContent()).trim(),'Опыт');
