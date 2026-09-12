@@ -74,6 +74,7 @@ assert(sources.includes('class="dqp-ribbon-scroll"'), "Inline horizontal ribbon 
 assert(sources.includes('data-action="toggle-column"'), "Independent column collapse controls are missing");
 assert(!sources.includes("Verbs") && !sources.includes("{{verbs}}"), "Trait cards must contain only icon, name, and modifier");
 assert(sources.includes('class="dqp-trait-emblem"') && sources.includes('class="dqp-trait-name"') && sources.includes('class="dqp-trait-value"'), "Ornamental trait card composition is missing");
+assert(sources.includes("DAGGERHEART.CONFIG.Traits.${key}.name") && sources.includes("isEnglishFallback"), "Trait names must follow the active Daggerheart translation with a HUD-language fallback");
 assert(sources.includes('characterOpen') && sources.includes('traitsOpen') && sources.includes('workspaceOpen'), "Independent column state is missing");
 assert(!sources.includes('data-action="close-panel"'), "A one-click close-all control must not be present");
 assert(sources.includes('{{#each playGroups}}{{> inlineGroup}}'), "Play must preserve Equipment and Loadout groups");

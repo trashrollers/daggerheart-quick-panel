@@ -372,7 +372,13 @@ export class DaggerheartQuickPanelBase {
 
     const traits = TRAITS.map(([key, labelKey, icon]) => {
       const value = Number(actor.system.traits?.[key]?.value || 0);
-      const label = localize(`DQP.Traits.${labelKey}`);
+      const systemLabelKey = `DAGGERHEART.CONFIG.Traits.${key}.name`;
+      const systemLabel = localize(systemLabelKey);
+      const isEnglishFallback = this.activeLanguage === "ru"
+        && systemLabel.toLocaleLowerCase() === labelKey.toLocaleLowerCase();
+      const label = systemLabel !== systemLabelKey && !isEnglishFallback
+        ? systemLabel
+        : localize(`DQP.Traits.${labelKey}`);
       return {
         key,
         icon,

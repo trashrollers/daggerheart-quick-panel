@@ -496,6 +496,10 @@ try {
   await page.evaluate(async()=>{
     game.i18n.lang='en';
     game.modules.set('daggerheart-ru',{id:'daggerheart-ru',title:'Русский перевод Daggerheart',active:true,relationships:{systems:[{id:'daggerheart'}]}});
+    game.i18n.translations.DAGGERHEART={CONFIG:{Traits:{
+      agility:{name:'Проворность'},strength:{name:'Сила'},finesse:{name:'Искусность'},
+      instinct:{name:'Инстинкт'},presence:{name:'Влияние'},knowledge:{name:'Знание'}
+    }}};
     await panel.applyLanguage(false);
     await panel.render();
   });
@@ -504,6 +508,7 @@ try {
   assert.equal((await page.locator('[data-tab="core"]').textContent()).trim(),'Игра');
   assert.equal((await page.locator('[data-tab="experiences"]').textContent()).trim(),'Опыт');
   assert.equal(await page.locator('[data-action="toggle-scale"]').getAttribute('aria-label'),'Масштаб HUD');
+  assert.deepEqual(await page.locator('.dqp-trait-name').allTextContents(),['Проворность','Сила','Искусность','Инстинкт','Влияние','Знание']);
   const russianOverflow=await page.evaluate(()=>Array.from(document.querySelectorAll('.dqp-character-body,.dqp-character-identity,.dqp-traits-body,.dqp-trait,.dqp-trait-name,.dqp-defense,.dqp-resource-label,.dqp-tabs')).filter(el=>getComputedStyle(el).visibility!=='hidden'&&el.getClientRects().length&&(el.scrollWidth>el.clientWidth+1||el.scrollHeight>el.clientHeight+1)).map(el=>el.className));
   assert.deepEqual(russianOverflow,[],'Russian HUD labels must fit the tested layout');
   await page.screenshot({path:path.join(output,'localization-ru.png')});
