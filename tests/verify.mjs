@@ -105,7 +105,7 @@ assert(read("styles/panel.css").includes("#ui-right #ui-right-column-1") && sour
 assert(read("styles/panel.css").includes("--dqp-hud-max: 1160px"), "Compact HUD width is missing");
 assert(sources.includes('data-column-panel="character"') && sources.includes('data-column-panel="traits"') && sources.includes('data-column-panel="workspace"'), "Fixed independent layer anchors are missing");
 assert(!sources.includes("panelStage"), "Sequential stage state must not be used");
-assert(read("styles/panel.css").includes(".dqp-portrait-frame img") && read("styles/panel.css").includes("object-fit: cover"), "The portrait must fill its circular frame");
+assert(read("styles/panel.css").includes(".dqp-portrait-frame img") && read("styles/panel.css").includes("object-fit: contain") && read("styles/panel.css").includes("background: #050506"), "The portrait must preserve the full character artwork on a dark background");
 assert(!sources.includes("dqp-detail-panel"), "Detached detail window must not be present");
 
 console.log(`Verified ${manifest.title} ${manifest.version}: ${enKeys.length} English/Russian strings, native Daggerheart actions, no system patching.`);
