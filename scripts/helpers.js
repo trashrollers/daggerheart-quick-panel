@@ -1,7 +1,9 @@
 export const MODULE_ID = "daggerheart-quick-panel";
 export const TEMPLATE = `modules/${MODULE_ID}/templates/panel.hbs`;
+export const ADVERSARY_TEMPLATE = `modules/${MODULE_ID}/templates/adversary-panel.hbs`;
+export const GENERIC_TEMPLATE = `modules/${MODULE_ID}/templates/generic-panel.hbs`;
 export const ITEM_PARTIAL = `modules/${MODULE_ID}/templates/partials/item-row.hbs`;
-export const STRESS_OVERFLOW_PATCH = Symbol.for(`${MODULE_ID}.stress-overflow-cost-rule`);
+export const SUPPORTED_ACTOR_TYPES = ["character", "adversary", "companion", "npc", "environment", "party"];
 
 export const TRAITS = [
   ["agility", "Agility", "fa-solid fa-person-running"],
@@ -39,8 +41,52 @@ export function clamp(value, min, max) {
 export function asArray(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value;
+  if (typeof value === "string") return [value];
   if (typeof value.values === "function") return Array.from(value.values());
-  return Array.from(value);
+  if (typeof value[Symbol.iterator] === "function") return Array.from(value);
+  return typeof value === "object" ? Object.values(value) : [];
+}
+
+// Detect capabilities rather than branching on version numbers. Daggerheart
+// exposes collections and action classes differently across its 2.x releases.
+export function itemActions(item) {
+  const system = item?.system;
+  if (!system) return [];
+  if (system.actionsList != null) return asArray(system.actionsList).filter(Boolean);
+  return [system.attack, ...asArray(system.actions)].filter(Boolean);
+}
+
+export function systemActionType(type) {
+  const api = game.system.api;
+  return api?.data?.actions?.actionsTypes?.[type]
+    ?? api?.models?.actions?.actionsTypes?.[type];
+}
+
+export function sheetAction(actor, name) {
+  const sheet = actor?.sheet;
+  if (!sheet) return null;
+  for (const actions of [sheet.options?.actions, sheet.constructor?.DEFAULT_OPTIONS?.actions]) {
+    const action = actions instanceof Map ? actions.get(name) : actions?.[name];
+    const handler = typeof action === "function" ? action : action?.handler;
+    if (typeof handler === "function") return { sheet, handler };
+  }
+  return null;
+}
+
+export function actionLabels(attack) {
+  try {
+    const source = attack?._getLabels;
+    const raw = typeof source === "function" ? source.call(attack) : source;
+    const labels = raw && typeof raw === "object" && "value" in raw ? [raw] : asArray(raw);
+    return labels.map(label => label?.value ?? label)
+      .filter(label => typeof label === "string" || typeof label === "number")
+      .map(label => localize(String(label))).filter(Boolean);
+  } catch (error) {
+    // Labels are optional presentation data: a broken system label helper
+    // must not prevent the actor, resources and attack button from rendering.
+    console.warn(`${MODULE_ID} | Attack labels are unavailable`, error);
+    return [];
+  }
 }
 
 export function escapeHTML(value) {
@@ -55,38 +101,6 @@ export function changePaths(value, prefix = "") {
     const path = prefix ? `${prefix}.${key}` : key;
     return child && typeof child === "object" && !Array.isArray(child) ? changePaths(child, path) : [path];
   });
-}
-
-/**
- * Daggerheart already converts Stress that would exceed its maximum into a Hit
- * Point when resources are applied. Its action-cost validation normally stops
- * the action before that conversion can happen, though. Keep every other cost
- * check native and only waive the unavailable-slot check for actor Stress.
- */
-export function installStressOverflowCostRule() {
-  const CostField = game.system.api?.fields?.ActionFields?.CostField;
-  const nativeHasCost = CostField?.hasCost;
-  if (typeof nativeHasCost !== "function" || nativeHasCost[STRESS_OVERFLOW_PATCH]) return false;
-
-  const hasCostWithStressOverflow = function (costs) {
-    if (nativeHasCost.call(this, costs)) return true;
-
-    const realCosts = typeof CostField.getRealCosts === "function"
-      ? CostField.getRealCosts.call(this, costs)
-      : asArray(costs).filter((cost) => cost.enabled !== false);
-    const hasActorStressCost = realCosts.some((cost) =>
-      cost.key === "stress" && !cost.itemId && Number(cost.total ?? cost.value ?? 0) > 0
-    );
-    if (!hasActorStressCost) return false;
-
-    const nonStressCosts = realCosts.filter((cost) => cost.key !== "stress" || cost.itemId);
-    return nativeHasCost.call(this, nonStressCosts);
-  };
-
-  Object.defineProperty(hasCostWithStressOverflow, STRESS_OVERFLOW_PATCH, { value: true });
-  Object.defineProperty(hasCostWithStressOverflow, "dqpNativeHasCost", { value: nativeHasCost });
-  CostField.hasCost = hasCostWithStressOverflow;
-  return true;
 }
 
 export function plainText(html, max = 180) {

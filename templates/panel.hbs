@@ -6,6 +6,7 @@
         <button type="button" class="{{#if characterOpen}}is-active{{/if}}" data-action="toggle-column" data-column="character" aria-expanded="{{characterOpen}}" aria-label="{{localize 'DQP.Columns.ToggleCharacter'}}" data-tooltip="{{localize 'DQP.Columns.ToggleCharacter'}}"><i class="fa-solid fa-heart" inert></i></button>
         <button type="button" class="{{#if traitsOpen}}is-active{{/if}}" data-action="toggle-column" data-column="traits" aria-expanded="{{traitsOpen}}" aria-label="{{localize 'DQP.Columns.ToggleTraits'}}" data-tooltip="{{localize 'DQP.Columns.ToggleTraits'}}"><i class="fa-solid fa-dice-d20" inert></i></button>
         <button type="button" class="{{#if workspaceOpen}}is-active{{/if}}" data-action="toggle-column" data-column="workspace" aria-expanded="{{workspaceOpen}}" aria-label="{{localize 'DQP.Columns.ToggleWorkspace'}}" data-tooltip="{{localize 'DQP.Columns.ToggleWorkspace'}}"><i class="fa-solid fa-layer-group" inert></i></button>
+        <div id="dqp-utility-controls" class="dqp-utility-controls" role="group" aria-label="{{localize 'DQP.Columns.Utility'}}" aria-hidden="{{#if utilityDockOpen}}false{{else}}true{{/if}}" {{#unless utilityDockOpen}}hidden inert{{/unless}}>
         <div class="dqp-actor-switcher-wrap">
           <button type="button" data-action="toggle-actor-switcher" aria-expanded="false" aria-label="{{localize 'DQP.Actor.Select'}}" data-tooltip="{{localize 'DQP.Actor.Select'}}"><i class="fa-solid fa-user-group" inert></i></button>
           <div class="dqp-actor-switcher-controls" role="group" aria-label="{{localize 'DQP.Actor.Select'}}" hidden>
@@ -28,7 +29,9 @@
             {{#each placements}}<button type="button" class="dqp-placement-choice {{#if active}}is-active{{/if}}" data-action="set-placement" data-placement="{{id}}" aria-pressed="{{active}}" aria-label="{{label}}" data-tooltip="{{label}}"><i class="{{icon}}" inert></i></button>{{/each}}
           </div>
         </div>
+        </div>
         <button type="button" class="dqp-hud-toggle dqp-dock-hud-toggle is-on" data-action="toggle-hud" aria-pressed="true" aria-label="{{hudToggleLabel}}" data-tooltip="{{hudToggleLabel}}"><i class="{{hudToggleIcon}}" inert></i></button>
+        <button type="button" class="dqp-utility-toggle {{#if utilityDockOpen}}is-active{{/if}}" data-action="toggle-utilities" aria-expanded="{{utilityDockOpen}}" aria-controls="dqp-utility-controls" aria-label="{{localize 'DQP.Columns.Utility'}}" data-tooltip="{{localize 'DQP.Columns.Utility'}}"><i class="fa-solid fa-gear" inert></i></button>
       </nav>
     <div class="dqp-columns">
       <div class="dqp-avatar-anchor">
@@ -47,33 +50,26 @@
         </div></header>
         <div class="dqp-character-body">
           <div class="dqp-character-identity">
-            <strong data-tooltip="{{actor.name}}">{{actor.name}}</strong>
-            <div data-tooltip="{{actor.classLabel}}"><b>{{actor.classLabel}}</b></div>
-            <div data-tooltip="{{actor.domainLabel}}"><b>{{actor.domainLabel}}</b></div>
+            <div class="dqp-character-title"><strong data-tooltip="{{actor.name}}">{{actor.name}}</strong><span data-tooltip="{{actor.domainLabel}}">{{actor.domainLabel}}</span></div>
+            <div class="dqp-character-class" data-tooltip="{{actor.classLabel}}"><b>{{actor.classLabel}}</b></div>
           </div>
           <section class="dqp-defense" aria-label="{{localize 'DQP.Stats.Thresholds'}}">
             <div class="dqp-defense-stats">
-              {{#each stats}}<div data-tooltip="{{label}}"><i class="{{icon}}" inert></i><strong>{{value}}</strong><span>{{label}}</span></div>{{/each}}
+              {{#each stats}}<div data-tooltip="{{label}}: {{value}}" aria-label="{{label}}: {{value}}"><i class="{{icon}}" inert></i><strong>{{value}}</strong><span>{{label}}</span></div>{{/each}}
             </div>
-            {{#if armorResource}}
-              <div class="dqp-armor-slots dqp-resource--armor" aria-label="{{armorResource.label}}">
-                <span data-tooltip="{{armorResource.label}}">{{armorResource.value}}/{{armorResource.max}}</span>
-                <div class="dqp-pips">{{#each armorResource.pips}}<button type="button" class="dqp-pip {{#if active}}is-active{{/if}}" data-action="set-resource" data-path="{{../armorResource.path}}" data-value="{{value}}" aria-pressed="{{active}}" aria-label="{{label}}" data-tooltip="{{label}}"></button>{{/each}}</div>
-              </div>
-            {{/if}}
           </section>
           <div class="dqp-vital-stack">
             <section class="dqp-vitals" aria-label="{{localize 'DQP.Columns.Vitals'}}">
-              {{#each coreResources}}
-                <div class="dqp-resource dqp-resource--{{key}}">
-                  <div class="dqp-resource-label"><span><i class="{{icon}}" inert></i>{{label}}</span><strong>{{value}}/{{max}}</strong></div>
-                  <div class="dqp-pips">{{#each pips}}<button type="button" class="dqp-pip {{#if active}}is-active{{/if}}" data-action="set-resource" data-path="{{../path}}" data-value="{{value}}" aria-pressed="{{active}}" aria-label="{{label}}" data-tooltip="{{label}}"></button>{{/each}}</div>
+              {{#each resources}}
+                <div class="dqp-resource dqp-resource--{{key}}" {{#if isArmor}}data-preview-thresholds="true"{{/if}}>
+                  <div class="dqp-resource-label">
+                    <span class="dqp-resource-title"><button type="button" class="dqp-resource-control" data-action="adjust-resource" data-path="{{path}}" aria-label="{{label}}: {{value}}/{{max}}. {{localize 'DQP.Resources.ClickHint'}}" {{#unless isArmor}}data-tooltip="{{label}}: {{value}}/{{max}} · {{localize 'DQP.Resources.ClickHint'}}"{{/unless}}><i class="{{icon}}" inert></i></button><span class="dqp-resource-name">{{label}}</span></span>
+                    <strong class="dqp-resource-value">{{value}}<span>/{{max}}</span></strong>
+                  </div>
+                  <div class="dqp-pips">{{#each pips}}<button type="button" class="dqp-pip {{#if active}}is-active{{/if}}" data-action="set-resource" data-path="{{../path}}" data-value="{{value}}" aria-pressed="{{active}}" aria-label="{{label}}" {{#unless ../isArmor}}data-tooltip="{{label}}"{{/unless}}></button>{{/each}}</div>
                 </div>
               {{/each}}
             </section>
-            <div class="dqp-thresholds" aria-label="{{localize 'DQP.Stats.Thresholds'}}">
-              {{#each thresholds}}<span><b>{{label}}</b><strong>{{value}}</strong></span>{{/each}}
-            </div>
           </div>
         </div>
       </section>
@@ -118,12 +114,25 @@
               {{#if abilityGroups.length}}{{#each abilityGroups}}{{> inlineGroup}}{{/each}}{{else}}<div class="dqp-empty-inline">{{localize "DQP.Cards.NoFeatures"}}</div>{{/if}}
             {{/if}}
             {{#if showExperiences}}
-              {{#if experiences.length}}
-              <section class="dqp-experiences" aria-label="{{localize 'DQP.Experiences.Title'}}">
-                {{#each experiences}}<button type="button" class="dqp-experience" data-action="show-experience" data-preview-experience="{{id}}"><i class="fa-solid fa-feather-pointed" inert></i><span>{{name}}</span><strong>{{value}}</strong></button>
-                {{/each}}
+              {{#each effectGroups}}
+              <section class="dqp-effect-group dqp-effect-group--{{id}} {{#if collapsed}}is-collapsed{{/if}}" data-effect-drop="{{id}}" aria-label="{{label}}">
+                <button type="button" class="dqp-effect-heading" data-action="toggle-group" data-group="{{key}}" aria-expanded="{{#if collapsed}}false{{else}}true{{/if}}" aria-label="{{toggleLabel}}" data-tooltip="{{toggleLabel}}"><i class="{{icon}}" inert></i><span>{{label}}</span><small>{{effects.length}}</small><i class="fa-solid fa-chevron-right" inert></i></button>
+                <div class="dqp-effect-list">
+                  {{#each effects}}
+                  <article class="dqp-effect-card {{#unless active}}is-inactive{{/unless}}" data-effect-key="{{key}}" data-effect-active="{{active}}" data-preview-effect="{{key}}" {{#if canToggle}}draggable="true"{{/if}}>
+                      <button type="button" class="dqp-effect-open" data-action="share-effect" data-effect-key="{{key}}" aria-label="{{name}}"><img src="{{img}}" alt="" /><span>{{name}}</span></button>
+                    {{#if canToggle}}<button type="button" class="dqp-effect-toggle" data-action="toggle-effect" data-effect-key="{{key}}" data-effect-target="{{#if nextActive}}active{{else}}inactive{{/if}}" aria-label="{{toggleLabel}}" data-tooltip="{{toggleLabel}}"><i class="{{toggleIcon}}" inert></i></button>{{/if}}
+                  </article>
+                  {{else}}<span class="dqp-effect-empty">{{localize 'DQP.Cards.Empty'}}</span>{{/each}}
+                </div>
               </section>
-              {{/if}}
+              {{/each}}
+              <section class="dqp-experience-group {{#if experienceGroup.collapsed}}is-collapsed{{/if}}" aria-label="{{experienceGroup.label}}">
+                <button type="button" class="dqp-effect-heading" data-action="toggle-group" data-group="{{experienceGroup.key}}" aria-expanded="{{#if experienceGroup.collapsed}}false{{else}}true{{/if}}" aria-label="{{experienceGroup.toggleLabel}}" data-tooltip="{{experienceGroup.toggleLabel}}"><i class="{{experienceGroup.icon}}" inert></i><span>{{experienceGroup.label}}</span><small>{{experiences.length}}</small><i class="fa-solid fa-chevron-right" inert></i></button>
+                <div class="dqp-experiences">
+                  {{#each experiences}}<button type="button" class="dqp-experience" data-action="show-experience" data-preview-experience="{{id}}"><i class="fa-solid fa-feather-pointed" inert></i><span>{{name}}</span><strong>{{value}}</strong></button>{{else}}<span class="dqp-effect-empty">{{localize 'DQP.Cards.Empty'}}</span>{{/each}}
+                </div>
+              </section>
             {{/if}}
             {{#if showGear}}{{#each gearGroups}}{{> inlineGroup}}{{/each}}{{/if}}
           </div>

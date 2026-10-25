@@ -1,5 +1,6 @@
 import { DaggerheartQuickPanelBase } from "./panel-base.js";
-import { MODULE_ID, TEMPLATE, ITEM_PARTIAL, STRESS_OVERFLOW_PATCH, TRAITS, ITEM_TYPE_ORDER, HUD_THEMES, HUD_PLACEMENTS, localize, clamp, asArray, escapeHTML, changePaths, installStressOverflowCostRule, plainText } from "./helpers.js";
+import { MODULE_ID, TEMPLATE, ITEM_PARTIAL, SUPPORTED_ACTOR_TYPES, TRAITS, ITEM_TYPE_ORDER, HUD_THEMES, HUD_PLACEMENTS, localize, clamp, asArray, escapeHTML, changePaths, plainText } from "./helpers.js";
+import { itemActions, sheetAction, systemActionType } from "./helpers.js";
 
 class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   applyPlacement() {
@@ -67,6 +68,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
       if (this.open) {
         this.rememberHudEye(target);
         await this.animateHud(false);
+        this.utilityDockOpen = false;
         await game.settings.set(MODULE_ID, "hudEnabled", false);
         return this.render();
       }
@@ -176,12 +178,10 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
     if (!actor.isOwner) return ui.notifications.warn(localize("DQP.Warnings.NoPermission"));
     const item = actor.items.get(target.dataset.itemId);
     if (!item || !["weapon", "armor"].includes(item.type)) return;
-    const sheet = actor.sheet;
-    const action = sheet.options?.actions?.toggleEquipItem;
-    const handler = typeof action === "function" ? action : action?.handler;
-    if (!handler) return ui.notifications.warn(localize("DQP.Gear.EquipUnavailable"));
+    const native = sheetAction(actor, "toggleEquipItem");
+    if (!native) return ui.notifications.warn(localize("DQP.Gear.EquipUnavailable"));
     return this.withLock(`equip:${actor.id}`, target, async () => {
-      await handler.call(sheet, event, target);
+      await native.handler.call(native.sheet, event, target);
       this.scheduleRender();
     });
   }
@@ -191,6 +191,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
     const actor = this.actors.find((candidate) => candidate.id === event.target.value);
     if (!actor) return this.render();
     this.hidePreview();
+    this.manualActorOverride = true;
     await game.settings.set(MODULE_ID, "selectedActorId", actor.id);
     this.collapsedGroups = new Set();
     return this.render();
@@ -212,20 +213,39 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
       description.className = "dqp-experience-description";
       description.textContent = plainText(experience.description, Infinity) || localize("DQP.Actions.NoDescription");
       card.append(heading, description);
-      const question = document.createElement("p");
-      question.className = "dqp-experience-question";
-      question.textContent = localize("DQP.Experiences.ShareQuestion");
-      const send = await foundry.applications.api.DialogV2.confirm({
-        window: { title: localize("DQP.Experiences.Title") },
-        classes: ["dqp-experience-dialog"],
-        position: { width: 390 },
-        content: card.outerHTML + question.outerHTML,
-        yes: { label: localize("DQP.Experiences.Share") },
-        no: { label: localize("DQP.Experiences.Close") },
-        defaultYes: false,
-        rejectClose: false,
-      });
-      if (!send) return;
+      if (!this.actors.some((candidate) => candidate.id === actor.id)) return ui.notifications.warn(localize("DQP.Warnings.NoPermission"));
+      const Chat = CONFIG.ChatMessage.documentClass;
+      await Chat.create({ speaker: Chat.getSpeaker({ actor }), content: card.outerHTML });
+    });
+  }
+
+  async shareEffect(actor, target) {
+    if (!actor.isOwner) return ui.notifications.warn(localize("DQP.Warnings.NoPermission"));
+    const key = target.dataset.effectKey;
+    const effect = this.effectByKey(actor, key);
+    if (!effect) return;
+    return this.withLock(`effect-share:${actor.id}:${key}`, target, async () => {
+      const active = typeof effect.active === "boolean" ? effect.active : !effect.disabled && !effect.isSuppressed;
+      const rawDescription = effect.description || effect.parent?.system?.description || "";
+      const localizedDescription = typeof rawDescription === "string" ? localize(rawDescription) : rawDescription;
+      const card = document.createElement("article");
+      card.className = "dqp-experience-detail dqp-effect-detail";
+      const header = document.createElement("header");
+      header.className = "dqp-effect-detail-heading";
+      const image = document.createElement("img");
+      image.src = effect.img || "icons/svg/aura.svg";
+      image.alt = "";
+      const labels = document.createElement("div");
+      const heading = document.createElement("h3");
+      heading.textContent = effect.name || localize("DQP.Effects.Unnamed");
+      const status = document.createElement("small");
+      status.textContent = localize(active ? "DQP.Effects.Active" : "DQP.Effects.Inactive");
+      labels.append(heading, status);
+      header.append(image, labels);
+      const description = document.createElement("div");
+      description.className = "dqp-experience-description";
+      description.textContent = plainText(localizedDescription, Infinity) || localize("DQP.Actions.NoDescription");
+      card.append(header, description);
       if (!this.actors.some((candidate) => candidate.id === actor.id)) return ui.notifications.warn(localize("DQP.Warnings.NoPermission"));
       const Chat = CONFIG.ChatMessage.documentClass;
       await Chat.create({ speaker: Chat.getSpeaker({ actor }), content: card.outerHTML });
@@ -236,7 +256,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
     if (event.target.closest?.(".dqp-scale-wrap")) this.cancelScaleHide();
     if (event.target.closest?.(".dqp-theme-wrap")) this.cancelThemeHide();
     if (event.target.closest?.(".dqp-hover-card")) { window.clearTimeout(this.previewTimer); return; }
-    const anchor = event.target.closest?.("[data-preview-item], [data-preview-experience]");
+    const anchor = event.target.closest?.("[data-preview-item], [data-preview-experience], [data-preview-effect], [data-preview-thresholds]");
     if (!anchor || !this.root.contains(anchor)) return;
     window.clearTimeout(this.previewTimer);
     if (this.previewAnchor === anchor) return;
@@ -249,7 +269,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
     if (scaleWrap && !scaleWrap.contains(event.relatedTarget)) this.scheduleScaleHide();
     const themeWrap = event.target.closest?.(".dqp-theme-wrap");
     if (themeWrap && !themeWrap.contains(event.relatedTarget)) this.scheduleThemeHide();
-    const anchor = event.target.closest?.("[data-preview-item], [data-preview-experience], .dqp-hover-card");
+    const anchor = event.target.closest?.("[data-preview-item], [data-preview-experience], [data-preview-effect], [data-preview-thresholds], .dqp-hover-card");
     if (!anchor || anchor.contains(event.relatedTarget)) return;
     if (this.preview?.contains(event.relatedTarget) || this.previewAnchor?.contains(event.relatedTarget)) return;
     window.clearTimeout(this.previewTimer);
@@ -265,24 +285,33 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   }
 
   showPreview(anchor) {
-    if (!anchor.isConnected || !this.actor) return;
-    const item = this.actor.items.get(anchor.dataset.previewItem);
-    const experience = this.actor.system.experiences?.[anchor.dataset.previewExperience];
-    if (!item && !experience) return;
+    const actor = this.activeActor;
+    if (!anchor.isConnected || !actor) return;
+    if (anchor.hasAttribute("data-preview-thresholds")) return this.showThresholdPreview(anchor, actor);
+    const item = actor.items.get(anchor.dataset.previewItem);
+    const experience = actor.system.experiences?.[anchor.dataset.previewExperience];
+    const effect = this.effectByKey(actor, anchor.dataset.previewEffect);
+    if (!item && !experience && !effect) return;
     this.hidePreview();
-    const view = item ? this.itemData(item, this.actor) : null;
+    const view = item ? this.itemData(item, actor) : null;
     const card = document.createElement("aside");
     card.id = "dqp-hover-card";
     card.className = "dqp-hover-card";
     card.setAttribute("role", "tooltip");
     card.tabIndex = 0;
     const title = document.createElement("strong");
-    title.textContent = item?.name || experience.name || localize("DQP.Experiences.Unnamed");
+    title.textContent = item?.name || experience?.name || effect?.name || localize("DQP.Experiences.Unnamed");
     const meta = document.createElement("small");
-    meta.textContent = view?.meta || `${localize("DQP.Experiences.Title")} · ${Number(experience?.value) >= 0 ? "+" : ""}${experience?.value ?? 0}`;
+    const effectActive = typeof effect?.active === "boolean" ? effect.active : !effect?.disabled && !effect?.isSuppressed;
+    meta.textContent = view?.meta
+      || (experience ? `${localize("DQP.Experiences.Title")} · ${Number(experience.value) >= 0 ? "+" : ""}${experience.value ?? 0}`
+        : localize(effectActive ? "DQP.Effects.Active" : "DQP.Effects.Inactive"));
     const description = document.createElement("div");
     const itemDescription = item?.system.description || asArray(item?.system.actionsList).map((action) => action.description).filter(Boolean).join("\n\n");
-    description.textContent = plainText(item ? itemDescription : experience.description, Infinity) || localize("DQP.Actions.NoDescription");
+    const rawEffectDescription = effect?.description || effect?.parent?.system?.description || "";
+    const effectDescription = typeof rawEffectDescription === "string" ? localize(rawEffectDescription) : rawEffectDescription;
+    description.textContent = plainText(item ? itemDescription : experience ? experience.description : effectDescription, Infinity)
+      || localize("DQP.Actions.NoDescription");
     card.append(title, meta);
     if (view?.costPreview) {
       const cost = document.createElement("div");
@@ -291,6 +320,34 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
       card.append(cost);
     }
     card.append(description);
+    this.presentPreview(card, anchor);
+  }
+
+  showThresholdPreview(anchor, actor) {
+    this.hidePreview();
+    const card = document.createElement("aside");
+    card.id = "dqp-hover-card";
+    card.className = "dqp-hover-card dqp-threshold-preview";
+    card.setAttribute("role", "tooltip");
+    card.tabIndex = 0;
+    const title = document.createElement("strong");
+    title.textContent = localize("DQP.Stats.Thresholds");
+    const rows = document.createElement("div");
+    rows.className = "dqp-threshold-preview-rows";
+    for (const threshold of this.thresholdData(actor)) {
+      const row = document.createElement("div");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      label.textContent = threshold.label;
+      value.textContent = threshold.value;
+      row.append(label, value);
+      rows.append(row);
+    }
+    card.append(title, rows);
+    this.presentPreview(card, anchor);
+  }
+
+  presentPreview(card, anchor) {
     const safeLeft = this.hudBounds?.left ?? 8;
     const safeRight = this.hudBounds?.right ?? window.innerWidth - 8;
     card.style.maxWidth = `${Math.max(1, safeRight - safeLeft)}px`;
@@ -306,16 +363,41 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   }
 
   onContextMenu(event) {
+    const resource = event.target.closest('[data-action="adjust-resource"]');
+    if (resource && this.root?.contains(resource)) {
+      event.preventDefault();
+      this.hidePreview();
+      if (this.activeActor) void this.adjustResource(this.activeActor, resource, 1);
+      return;
+    }
     const row = event.target.closest(".dqp-item-row");
     if (!row) return;
     event.preventDefault();
-    this.actor?.items.get(row.dataset.itemId)?.sheet.render({ force: true });
+    this.activeActor?.items.get(row.dataset.itemId)?.sheet.render({ force: true });
   }
 
   loadoutHasRoom(actor, item) {
-    if (!item?.system.inVault) return true;
+    if (!item?.system.inVault || item.system.loadoutIgnore) return true;
+    const available = actor.system.loadoutSlot?.available;
+    if (typeof available === "boolean") return available;
     const used = actor.items.filter((candidate) => candidate.type === "domainCard" && !candidate.system.inVault).length;
-    return used < this.loadoutLimit(actor) || Boolean(item.system.loadoutIgnore);
+    return used < this.loadoutLimit(actor);
+  }
+
+  async setEffectActive(actor, key, active, target) {
+    if (!actor?.isOwner) return ui.notifications.warn(localize("DQP.Warnings.NoPermission"));
+    const effect = this.effectByKey(actor, key);
+    if (!effect || effect.type === "beastform") return;
+    const wasActive = typeof effect.active === "boolean" ? effect.active : !effect.disabled && !effect.isSuppressed;
+    if (wasActive === active) return;
+    return this.withLock(`effect:${key}`, target, async () => {
+      // Mirror the Daggerheart sheet's toggleEffect document update.
+      await effect.update({ disabled: !active });
+      const nowActive = typeof effect.active === "boolean" ? effect.active : !effect.disabled && !effect.isSuppressed;
+      if (active && !nowActive) ui.notifications.warn(localize("DQP.Effects.StillInactive"));
+      if (nowActive === active) this.pendingEffectArrival = key;
+      this.scheduleRender(0);
+    });
   }
 
   clearDropHighlights() {
@@ -324,14 +406,28 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   }
 
   onDragStart(event) {
+    const effectCard = event.target.closest?.(".dqp-effect-card[draggable='true']");
+    if (effectCard) {
+      const actor = this.activeActor;
+      const effect = this.effectByKey(actor, effectCard.dataset.effectKey);
+      if (!actor?.isOwner || !effect || effect.type === "beastform") return event.preventDefault();
+      this.dragState = {
+        kind: "effect", actorId: actor.id, effectKey: effectCard.dataset.effectKey,
+        fromActive: effectCard.dataset.effectActive === "true"
+      };
+      event.dataTransfer?.setData("text/plain", JSON.stringify({ module: MODULE_ID, ...this.dragState }));
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+      requestAnimationFrame(() => effectCard.classList.add("is-dragging"));
+      return;
+    }
     const row = event.target.closest?.(".dqp-item-row[draggable='true']");
-    const actor = this.actor;
+    const actor = this.activeActor;
     const item = actor?.items.get(row?.dataset.itemId);
     if (!row || !actor?.isOwner || item?.type !== "domainCard") {
       event.preventDefault();
       return;
     }
-    this.dragState = { actorId: actor.id, itemId: item.id, fromVault: Boolean(item.system.inVault) };
+    this.dragState = { kind: "domain", actorId: actor.id, itemId: item.id, fromVault: Boolean(item.system.inVault) };
     event.dataTransfer?.setData("text/plain", JSON.stringify({ module: MODULE_ID, ...this.dragState }));
     if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
     requestAnimationFrame(() => row.classList.add("is-dragging"));
@@ -344,30 +440,48 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   }
 
   onDragOver(event) {
-    const group = event.target.closest?.("[data-drop-target]");
     const state = this.dragState;
-    if (!group || !state || state.actorId !== this.actor?.id) return;
+    const group = event.target.closest?.(state?.kind === "effect" ? "[data-effect-drop]" : "[data-drop-target]");
+    if (!group || !state || state.actorId !== this.activeActor?.id) return;
+    if (state.kind === "effect") {
+      const toActive = group.dataset.effectDrop === "active";
+      if (toActive === state.fromActive) return;
+      event.preventDefault();
+      this.clearDropHighlights();
+      group.classList.add("is-drop-target");
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      return;
+    }
     const toVault = group.dataset.dropTarget === "vault";
     if (toVault === state.fromVault) return;
     event.preventDefault();
-    const item = this.actor.items.get(state.itemId);
-    const valid = toVault || this.loadoutHasRoom(this.actor, item);
+    const item = this.activeActor.items.get(state.itemId);
+    const valid = toVault || this.loadoutHasRoom(this.activeActor, item);
     this.clearDropHighlights();
     group.classList.add(valid ? "is-drop-target" : "is-drop-invalid");
     if (event.dataTransfer) event.dataTransfer.dropEffect = valid ? "move" : "none";
   }
 
   onDragLeave(event) {
-    const group = event.target.closest?.("[data-drop-target]");
+    const group = event.target.closest?.("[data-drop-target], [data-effect-drop]");
     if (group && !group.contains(event.relatedTarget)) group.classList.remove("is-drop-target", "is-drop-invalid");
   }
 
   async onDrop(event) {
-    const group = event.target.closest?.("[data-drop-target]");
     const state = this.dragState;
-    if (!group || !state || state.actorId !== this.actor?.id) return;
+    const group = event.target.closest?.(state?.kind === "effect" ? "[data-effect-drop]" : "[data-drop-target]");
+    if (!group || !state || state.actorId !== this.activeActor?.id) return;
     event.preventDefault();
-    const actor = this.actor;
+    if (state.kind === "effect") {
+      const toActive = group.dataset.effectDrop === "active";
+      this.clearDropHighlights();
+      if (toActive !== state.fromActive) {
+        await this.setEffectActive(this.activeActor, state.effectKey, toActive, group);
+      }
+      this.dragState = null;
+      return;
+    }
+    const actor = this.activeActor;
     const item = actor.items.get(state.itemId);
     const toVault = group.dataset.dropTarget === "vault";
     this.clearDropHighlights();
@@ -390,28 +504,45 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   patchResource(actor, key) {
     const path = key === "armor" ? "system.armorScore.value" : `system.resources.${key}.value`;
     const labelKey = key === "hitPoints" ? "HitPoints" : key[0].toUpperCase() + key.slice(1);
-    const icon = { hitPoints: "fa-solid fa-heart-crack", stress: "fa-solid fa-bolt", hope: "fa-solid fa-diamond", armor: "fa-solid fa-shield-halved" }[key];
+    const icon = { hitPoints: "fa-solid fa-heart-crack", stress: "fa-solid fa-brain", hope: "fa-solid fa-diamond", armor: "fa-solid fa-shield-halved" }[key];
     const override = key === "armor" ? actor.system.armorScore : undefined;
     const view = this.resourceData(actor, key, path, `DQP.Resources.${labelKey}`, icon, override);
-    const container = key === "armor"
-      ? this.root?.querySelector(".dqp-armor-slots")
-      : this.root?.querySelector(`.dqp-resource--${key}`);
+    const container = this.root?.querySelector(`.dqp-vitals > .dqp-resource--${key}`);
     if (!container) return false;
-    const pips = [...container.querySelectorAll(".dqp-pip")];
-    if (pips.length !== view.max) return false;
-    const output = key === "armor" ? container.querySelector(":scope > span") : container.querySelector(".dqp-resource-label strong");
-    if (output) output.textContent = `${view.value}/${view.max}`;
+    const track = container.querySelector('.dqp-pips');
+    if (!track) return false;
+    if (track.children.length !== view.pips.length) {
+      track.replaceChildren(...view.pips.map((pipView) => {
+        const pip = document.createElement('button');
+        pip.type = 'button';
+        pip.className = 'dqp-pip';
+        pip.dataset.action = 'set-resource';
+        pip.dataset.path = path;
+        pip.dataset.value = String(pipView.value);
+        pip.setAttribute('aria-label', pipView.label);
+        if (!view.isArmor) pip.dataset.tooltip = pipView.label;
+        return pip;
+      }));
+    }
+    const pips = [...track.children];
+    const output = container.querySelector(".dqp-resource-value");
+    const previous = Number(output?.firstChild?.textContent);
+    if (output) output.innerHTML = `${view.value}<span>/${view.max}</span>`;
     for (const [index, pip] of pips.entries()) {
-      const wasActive = pip.classList.contains("is-active");
-      const isActive = index < view.value;
-      pip.classList.toggle("is-active", isActive);
-      pip.setAttribute("aria-pressed", String(isActive));
-      if (wasActive !== isActive) this.animateElement(pip, isActive ? "is-marked" : "is-cleared");
+      pip.classList.toggle('is-active', view.pips[index].active);
+      pip.setAttribute('aria-pressed', String(view.pips[index].active));
+    }
+    const hint = localize("DQP.Resources.ClickHint");
+    const control = container.querySelector(".dqp-resource-control");
+    control?.setAttribute("aria-label", `${view.label}: ${view.value}/${view.max}. ${hint}`);
+    if (control && !view.isArmor) control.dataset.tooltip = `${view.label}: ${view.value}/${view.max} · ${hint}`;
+    if (Number.isFinite(previous) && previous !== view.value) {
+      this.animateElement(container, view.value > previous ? "is-marked" : "is-cleared");
     }
     return true;
   }
 
-  refreshCostPreviews(actor = this.actor) {
+  refreshCostPreviews(actor = this.activeActor) {
     if (!actor) return;
     for (const row of this.root?.querySelectorAll(".dqp-item-row") || []) {
       const item = actor.items.get(row.dataset.itemId);
@@ -420,7 +551,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   }
 
   patchActorUpdate(actor, changes) {
-    if (!this.open || actor.id !== this.actor?.id) return false;
+    if (!this.open || actor.id !== this.activeActor?.id) return false;
     const paths = changePaths(changes);
     if (!paths.length) return false;
     const resourcePaths = {
@@ -507,14 +638,15 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   }
 
   patchItemUpdate(item, changes = {}) {
-    if (!this.open || (item.parent && item.parent.id !== this.actor?.id)) return false;
+    const actor = this.activeActor;
+    if (!this.open || (item.parent && item.parent.id !== actor?.id)) return false;
     const paths = changePaths(changes);
     const vaultChanged = paths.includes("system.inVault");
     if (vaultChanged && this.activeTab === "actions") return false;
     const patchable = ["name", "img", "system.inVault", "system.resource.value", "system.resource.max", "system.quantity"];
     if (paths.length && !paths.every((path) => patchable.includes(path))) return false;
     const rows = [...(this.root?.querySelectorAll(`.dqp-item-row[data-item-id="${CSS.escape(item.id)}"]`) || [])];
-    const view = this.itemData(item, this.actor);
+    const view = this.itemData(item, actor);
     if (vaultChanged && this.activeTab === "core" && rows.length) {
       const targetKey = view.inVault ? "play-vault" : "play-loadout";
       const destination = this.root.querySelector(`[data-group-key="${targetKey}"] .dqp-inline-items`);
@@ -525,7 +657,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
       destination.querySelector(".dqp-group-empty")?.remove();
       destination.append(row);
       if (moved) this.animateElement(row, "is-arriving", 420);
-      this.updateLoadoutCounts(this.actor);
+      this.updateLoadoutCounts(actor);
       const emptyGroup = [...this.root.querySelectorAll('[data-group-key="play-loadout"], [data-group-key="play-vault"]')]
         .some((group) => !group.querySelector(".dqp-item-row"));
       if (emptyGroup) this.scheduleRender(80);
@@ -563,18 +695,105 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
     await game.settings.set(MODULE_ID, key, nextOpen);
   }
 
+  armorSources(actor) {
+    let effects = [];
+    try {
+      if (typeof actor.allApplicableEffects === "function") effects = asArray(actor.allApplicableEffects());
+    } catch (error) {
+      console.warn(`${MODULE_ID} | Armor sources are unavailable`, error);
+    }
+    effects = effects.filter((effect) => effect.system?.armorData && !effect.disabled && !effect.isSuppressed);
+    const sources = [...effects, actor.system.armor].filter(Boolean);
+    return sources.map((document) => {
+      const data = document.type === "armor" ? document.system?.armor : document.system?.armorData;
+      let origin;
+      try { origin = document.origin ? foundry.utils.fromUuidSync(document.origin) : null; }
+      catch (_error) { origin = null; }
+      return {
+        document,
+        uuid: document.uuid,
+        name: origin?.name || (document.parent?.type === "armor" ? document.parent.name : document.name),
+        available: Math.max(0, Number(data?.max || 0) - Number(data?.current || 0)),
+        max: Number(data?.max || 0),
+      };
+    }).filter((source) => source.uuid && source.available > 0);
+  }
+
+  async chooseArmorSource(sources) {
+    const choices = sources.map((source, index) =>
+      `<label class="dqp-armor-source-option"><input type="radio" name="armorSource" value="${escapeHTML(source.uuid)}"${index === 0 ? " checked" : ""}><span>${escapeHTML(source.name || localize("DQP.Resources.Armor"))}</span><strong>${source.available}/${source.max}</strong></label>`
+    ).join("");
+    const uuid = await foundry.applications.api.DialogV2.prompt({
+      window: { title: localize("DQP.Resources.ChooseArmorSource") },
+      classes: ["dqp-armor-choice-dialog"],
+      position: { width: 330 },
+      content: `<p>${escapeHTML(localize("DQP.Resources.ChooseArmorHint"))}</p><div class="dqp-armor-source-list">${choices}</div>`,
+      ok: {
+        type: "submit",
+        label: localize("DQP.Resources.SpendArmor"),
+        icon: "fa-solid fa-shield-halved",
+        callback: (_event, button) => button.form.elements.armorSource?.value || null,
+      },
+      rejectClose: false,
+    });
+    return sources.find((source) => source.uuid === uuid) || null;
+  }
+
+  async adjustResource(actor, target, direction) {
+    if (!actor.isOwner) return ui.notifications.warn(localize("DQP.Warnings.NoPermission"));
+    const path = target.dataset.path;
+    if (!["system.resources.hitPoints.value", "system.resources.stress.value", "system.resources.hope.value", "system.armorScore.value"].includes(path)) return;
+    return this.withLock(`resource:${path}`, target, async () => {
+      const marked = Number(foundry.utils.getProperty(actor, path) || 0);
+      const maximum = Number(foundry.utils.getProperty(actor, path.replace(/\.value$/, ".max")) || 0);
+      const current = path === "system.armorScore.value" ? maximum - marked : marked;
+      const next = clamp(current + direction, 0, maximum);
+      if (next === current) return;
+      if (path === "system.armorScore.value") {
+        if (direction < 0 && typeof actor.system.updateArmorEffectValue === "function") {
+          const sources = this.armorSources(actor);
+          const source = sources.length > 1 ? await this.chooseArmorSource(sources) : sources[0];
+          if (sources.length > 1 && !source) return;
+          if (source) await actor.system.updateArmorEffectValue({ uuid: source.uuid, value: 1 });
+          else await actor.system.updateArmorValue({ value: 1 });
+        } else {
+          await actor.system.updateArmorValue({ value: -direction });
+        }
+      } else {
+        await actor.update({ [path]: next });
+      }
+      this.animateElement(target, direction > 0 ? "is-marked" : "is-cleared");
+    });
+  }
+
   async setResource(actor, target) {
     if (!actor.isOwner) return ui.notifications.warn(localize("DQP.Warnings.NoPermission"));
     const path = target.dataset.path;
     const clicked = Number(target.dataset.value);
-    const current = Number(foundry.utils.getProperty(actor, path) || 0);
-    const next = current === clicked ? clicked - 1 : clicked;
-    this.animateElement(target, next > current ? "is-marked" : "is-cleared");
-    if (path === "system.armorScore.value" && typeof actor.system.updateArmorValue === "function") {
-      const delta = clamp(next, 0, Number(actor.system.armorScore.max || 0)) - current;
-      return this.withLock(`resource:${path}`, target, () => actor.system.updateArmorValue({ value: delta }));
-    }
-    await this.withLock(`resource:${path}`, target, () => actor.update({ [path]: Math.max(0, next) }));
+    if (!["system.resources.hitPoints.value", "system.resources.stress.value", "system.resources.hope.value", "system.armorScore.value"].includes(path) || !Number.isFinite(clicked)) return;
+    return this.withLock(`resource:${path}`, target, async () => {
+      const maximum = Number(foundry.utils.getProperty(actor, path.replace(/\.value$/, ".max")) || 0);
+      const marked = Number(foundry.utils.getProperty(actor, path) || 0);
+      const current = path === "system.armorScore.value" ? maximum - marked : marked;
+      const next = clamp(current === clicked ? clicked - 1 : clicked, 0, maximum);
+      if (next === current) return;
+      if (path === "system.armorScore.value") {
+        if (next < current && typeof actor.system.updateArmorEffectValue === "function") {
+          for (let count = current - next; count > 0; count--) {
+            const sources = this.armorSources(actor);
+            const source = sources.length > 1 ? await this.chooseArmorSource(sources) : sources[0];
+            if (sources.length > 1 && !source) return;
+            if (source) await actor.system.updateArmorEffectValue({ uuid: source.uuid, value: 1 });
+            else await actor.system.updateArmorValue({ value: 1 });
+          }
+        } else {
+          await actor.system.updateArmorValue({ value: current - next });
+        }
+      } else {
+        await actor.update({ [path]: next });
+      }
+      this.animateElement(target, next > current ? "is-marked" : "is-cleared");
+    });
   }
 
   async openLevelUp(actor, target) {
@@ -616,7 +835,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
     if (item.type === "domainCard" && item.system.isDomainTouchedSuppressed) {
       return ui.notifications.warn(localize("DQP.Warnings.CardSuppressed"));
     }
-    const actions = asArray(item.system.actionsList);
+    const actions = itemActions(item);
     if (!actions.length) {
       ui.notifications.info(localize("DQP.Warnings.NoItemAction"));
       return item.sheet.render({ force: true });
@@ -645,7 +864,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
 
   findInsufficientCost(actor, action) {
     for (const cost of asArray(action?.cost)) {
-      if (cost?.enabled === false || cost.key === "stress" || cost.itemId) continue;
+      if (cost?.enabled === false || cost.itemId) continue;
       const amount = this.costAmount(cost);
       const resource = actor.system.resources?.[cost.key];
       if (!amount || !resource) continue;
@@ -672,8 +891,17 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
     if (!toVault && !this.loadoutHasRoom(actor, item)) {
       return ui.notifications.warn(localize("DQP.Warnings.LoadoutFull", { max: this.loadoutLimit(actor) }));
     }
+    const recallCost = Math.max(0, Number(item.system.recallCost || 0));
+    if (!toVault && recallCost > 0) {
+      const insufficient = this.findInsufficientCost(actor, {
+        cost: [{ key: "stress", value: recallCost }],
+      });
+      if (insufficient) {
+        return ui.notifications.warn(localize("DQP.Warnings.InsufficientResource", insufficient));
+      }
+    }
     const hasNativeTransfer = typeof item.system.toggleVault === "function";
-    const LegacyAction = game.system.api?.models?.actions?.actionsTypes?.effect;
+    const LegacyAction = systemActionType("effect");
     if (!hasNativeTransfer && !toVault && Number(item.system.recallCost || 0) > 0 && !LegacyAction) {
       return ui.notifications.error(localize("DQP.Warnings.TransferUnavailable"));
     }
@@ -695,7 +923,7 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
       return item.update({ "system.inVault": Boolean(toVault) });
     }
 
-    const Action = game.system.api?.models?.actions?.actionsTypes?.effect;
+    const Action = systemActionType("effect");
     if (!Action) return false;
     const action = new Action({
       ...Action.getSourceConfig(item.system),
@@ -740,9 +968,16 @@ class DaggerheartQuickPanel extends DaggerheartQuickPanelBase {
   }
 
   async openDowntime(actor, rest, target) {
+    if (!actor.isOwner) return ui.notifications.warn(localize("DQP.Warnings.NoPermission"));
+    const native = sheetAction(actor, "useDowntime");
     const Downtime = game.system.api?.applications?.dialogs?.Downtime;
-    if (!Downtime) return console.warn(`${MODULE_ID} | Daggerheart Downtime API is unavailable`);
+    if (!native && typeof Downtime !== "function") return actor.sheet?.render({ force: true });
     await this.withLock(`rest:${actor.id}`, target, async () => {
+      if (native) {
+        const button = document.createElement("button");
+        button.dataset.type = rest === "short" ? "shortRest" : "longRest";
+        return native.handler.call(native.sheet, null, button);
+      }
       new Downtime(actor, rest === "short").render({ force: true });
     });
   }
@@ -807,6 +1042,13 @@ Hooks.once("init", () => {
     scope: "client", config: false, type: Boolean, default: true,
     onChange: () => game.modules.get(MODULE_ID)?.api?.panel?.scheduleRender(0),
   });
+  game.settings.register(MODULE_ID, "diceTrayCollapsed", {
+    scope: "client", config: false, type: Boolean, default: true,
+    onChange: () => game.modules.get(MODULE_ID)?.api?.panel?.syncChatDock(),
+  });
+  game.settings.register(MODULE_ID, "playerHudRecovery", {
+    scope: "client", config: false, type: String, default: "",
+  });
   game.settings.register(MODULE_ID, "hudScale", {
     name: "DQP.Scale.Title", hint: "DQP.Scale.Hint", scope: "client", config: true,
     type: Number, default: 100, range: { min: 75, max: 125, step: 5 },
@@ -834,6 +1076,9 @@ Hooks.once("init", () => {
     scope: "client", config: false, type: Boolean, default: false,
     onChange: () => game.modules.get(MODULE_ID)?.api?.panel?.setupPlayersPanel(),
   });
+  game.settings.register(MODULE_ID, "compactCharacterWidthApplied", {
+    scope: "client", config: false, type: Boolean, default: false,
+  });
   for (const column of ["character", "traits", "workspace"]) {
     game.settings.register(MODULE_ID, `${column}Open`, {
       scope: "client",
@@ -845,7 +1090,7 @@ Hooks.once("init", () => {
       scope: "client",
       config: false,
       type: Number,
-      default: 100,
+      default: column === "character" ? 88 : 100,
       onChange: () => game.modules.get(MODULE_ID)?.api?.panel?.applyColumnWidths(),
     });
   }
@@ -853,31 +1098,70 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", async () => {
   if (game.system.id !== "daggerheart") return;
-  installStressOverflowCostRule();
+  if (!game.settings.get(MODULE_ID, "compactCharacterWidthApplied")) {
+    try {
+      if (Number(game.settings.get(MODULE_ID, "characterWidth")) === 100) {
+        await game.settings.set(MODULE_ID, "characterWidth", 88);
+      }
+      await game.settings.set(MODULE_ID, "compactCharacterWidthApplied", true);
+    } catch (error) {
+      console.warn(`${MODULE_ID} | Could not apply compact character width`, error);
+    }
+  }
   const panel = new DaggerheartQuickPanel();
   quickPanel = panel;
-  game.modules.get(MODULE_ID).api = { panel, render: () => panel.render() };
+  const module = game.modules.get(MODULE_ID);
+  if (module) module.api = { panel, render: () => panel.render() };
+
+  // A client-local hidden state can survive a module replacement. Re-enable
+  // the player HUD once for this repair so every player gets a visible panel
+  // (or at least its no-character state) immediately after reloading.
+  if (game.user?.isGM !== true && game.settings.get(MODULE_ID, "playerHudRecovery") !== "2") {
+    if (!game.settings.get(MODULE_ID, "hudEnabled")) {
+      await game.settings.set(MODULE_ID, "hudEnabled", true);
+    }
+    await game.settings.set(MODULE_ID, "playerHudRecovery", "2");
+  }
+
   await panel.applyLanguage(false);
   await panel.mount();
   panel.setupPlayersPanel();
-  const relevantActor = (document) => document?.type === "character" || document?.parent?.type === "character";
+  const supportedTypes = SUPPORTED_ACTOR_TYPES;
+  const relevantActor = (document) => supportedTypes.includes(document?.type)
+    || supportedTypes.includes(document?.parent?.type);
+
+  // Player HUD selection is independent from token-control state.
+  if (game.user?.isGM === true) {
+    Hooks.on("controlToken", (token, controlled) => panel.selectActorToken(token, controlled));
+    Hooks.on("updateToken", (token) => {
+      if (token.id === panel.selectedActorToken?.document?.id || token.id === panel.selectedActorToken?.id) {
+        panel.scheduleRender();
+      }
+    });
+  }
   Hooks.on("updateActor", (actor, changes) => {
-    if (actor.type === "character" && !panel.patchActorUpdate(actor, changes)) panel.scheduleRender();
+    if (supportedTypes.includes(actor.type) && actor.id === panel.activeActor?.id
+      && !panel.patchActorUpdate(actor, changes)) panel.scheduleRender();
   });
   Hooks.on("createActor", () => panel.scheduleRender());
   Hooks.on("deleteActor", () => panel.scheduleRender());
   Hooks.on("updateUser", (user) => { if (user.id === game.user.id) panel.scheduleRender(); });
   Hooks.on("renderPlayers", () => window.setTimeout(() => panel.setupPlayersPanel(), 0));
-  for (const hook of ['renderSidebar', 'renderChatNotifications', 'collapseSidebar']) {
+  for (const hook of ['renderSidebar', 'renderChatNotifications', 'renderChatLog', 'collapseSidebar']) {
     Hooks.on(hook, () => panel.observeLayout());
   }
   Hooks.on("createItem", (item) => {
-    if (relevantActor(item) && item.parent?.id === panel.actor?.id) panel.scheduleRender();
+    if (relevantActor(item) && item.parent?.id === panel.activeActor?.id) panel.scheduleRender();
   });
   Hooks.on("updateItem", (item, changes) => {
-    if (relevantActor(item) && item.parent?.id === panel.actor?.id && !panel.patchItemUpdate(item, changes)) panel.scheduleRender();
+    if (relevantActor(item) && item.parent?.id === panel.activeActor?.id && !panel.patchItemUpdate(item, changes)) panel.scheduleRender();
   });
   Hooks.on("deleteItem", (item) => {
-    if (relevantActor(item) && item.parent?.id === panel.actor?.id) panel.scheduleRender();
+    if (relevantActor(item) && item.parent?.id === panel.activeActor?.id) panel.scheduleRender();
   });
+  for (const hook of ["createActiveEffect", "updateActiveEffect", "deleteActiveEffect"]) {
+    Hooks.on(hook, (effect) => {
+      if (effect.parent?.id === panel.activeActor?.id) panel.scheduleRender();
+    });
+  }
 });

@@ -7,23 +7,50 @@
       "Show": "Show HUD",
       "Hide": "Hide HUD",
       "Enable": "Show HUD",
-      "ChooseTitle": "Choose a character",
-      "ChooseHint": "Which character do you want to use in the HUD?",
+      "ChooseTitle": "Choose an actor",
+      "ChooseHint": "Which actor do you want to use in the HUD?",
       "GMControlTitle": "Daggerheart HUD",
       "GMControl": "Show Daggerheart HUD"
     },
     "Actor": {
-      "NoneTitle": "No character available",
-      "NoneHintPlayer": "Assign a character to your user or grant Owner permission to a character.",
-      "NoneHintGM": "Create a Daggerheart character to use the quick panel.",
+      "NoneTitle": "No actor available",
+      "NoneHintPlayer": "Assign an actor to your user or grant Owner permission to an actor.",
+      "NoneHintGM": "Create a Daggerheart actor to use the quick panel.",
       "OpenSheet": "Open full character sheet",
       "LevelUp": "Open character advancement",
-      "Select": "Choose your character",
+      "Select": "Choose an actor",
       "Class": "Class",
       "Domains": "Domains"
     },
+    "Adversary": {
+      "Selected": "Selected adversary",
+      "Controls": "Adversary HUD controls",
+      "OpenSheet": "Open adversary sheet",
+      "Tier": "Tier {tier}",
+      "Difficulty": "Difficulty",
+      "Attack": "Attack",
+      "AttackBonus": "Attack",
+      "UseAttack": "Use {attack}",
+      "Motives": "Motives & tactics",
+      "Statistics": "Adversary statistics",
+      "Actions": "Attacks & features",
+      "ActionHint": "Click to use; hover for details",
+      "Effects": "Active effects",
+      "HordeUnit": "unit",
+      "NoActions": "No attacks or features available."
+    },
+    "Generic": {
+      "Title": "Actor quick panel",
+      "Statistics": "Actor statistics",
+      "Contents": "Actions and contents",
+      "Motives": "Motives",
+      "Impulses": "Impulses",
+      "Member": "Party member",
+      "Empty": "No actions or contents available."
+    },
     "Columns": {
       "Restore": "Show or hide HUD layers",
+      "Utility": "HUD tools",
       "Character": "Character",
       "Traits": "Traits & Rest",
       "Workspace": "Play Menu",
@@ -49,16 +76,19 @@
       "HitPoints": "Hit Points",
       "Stress": "Stress",
       "Hope": "Hope",
-      "Armor": "Armor Slots",
-      "Set": "Set {resource} to {value}"
+      "Armor": "Armor",
+      "Set": "Set {resource} to {value}",
+      "ClickHint": "Left click −1 · Right click +1",
+      "ChooseArmorSource": "Spend Armor",
+      "ChooseArmorHint": "Choose which source loses 1 Armor Slot.",
+      "SpendArmor": "Spend 1 slot"
     },
     "Cost": {
       "Action": "Cost: {cost}",
       "Recall": "Recall cost: {cost}",
       "Free": "Free",
       "FreeShort": "FREE",
-      "StressOverflowPartial": "{stress} Stress + {hp} Hit Point",
-      "StressOverflowFull": "{hp} Hit Point",
+      "Unavailable": "{cost} — unavailable (only {available} slots free)",
       "Quantity": "item",
       "Charges": "charge",
       "Fear": "Fear"
@@ -102,6 +132,14 @@
       "Add": "Add an experience",
       "Unnamed": "Unnamed experience",
       "Unavailable": "The Daggerheart experience editor is unavailable."
+    },
+    "Effects": {
+      "Active": "Active effects",
+      "Inactive": "Inactive effects",
+      "Activate": "Activate effect",
+      "Deactivate": "Deactivate effect",
+      "Unnamed": "Unnamed effect",
+      "StillInactive": "This effect remains inactive because it is currently suppressed."
     },
     "Play": {
       "Equipment": "Equipped",
@@ -148,11 +186,18 @@
       "TransferUnavailable": "This card cannot be moved between Loadout and Vault.",
       "Busy": "That action is already being resolved.",
       "ActionFailed": "The action could not be completed: {reason}",
+      "RenderFailed": "The HUD could not read this character after the system update.",
+      "Retry": "Retry HUD",
       "Unsupported": "Daggerheart Quick Panel only works in a Daggerheart world."
     },
     "Players": {
       "Show": "Show connected players",
       "Hide": "Hide connected players"
+    },
+    "Chat": {
+      "History": "Chat history",
+      "ShowDice": "Show dice",
+      "HideDice": "Hide dice"
     },
     "Scale": {
       "Title": "HUD scale",

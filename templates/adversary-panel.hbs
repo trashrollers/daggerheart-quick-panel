@@ -1,0 +1,85 @@
+{{#unless hudEnabled}}<button type="button" class="dqp-hud-toggle dqp-standalone-hud-toggle" data-action="toggle-hud" aria-pressed="false" aria-label="{{hudToggleLabel}}" data-tooltip="{{hudToggleLabel}}"><i class="{{hudToggleIcon}}" inert></i></button>{{/unless}}
+{{#if hudEnabled}}
+<section class="dqp-shell dqp-adversary-shell" aria-label="{{localize 'DQP.Adversary.Selected'}}">
+  <nav class="dqp-layer-dock dqp-adversary-dock" aria-label="{{localize 'DQP.Adversary.Controls'}}">
+    <div id="dqp-utility-controls" class="dqp-utility-controls" role="group" aria-label="{{localize 'DQP.Columns.Utility'}}" aria-hidden="{{#if utilityDockOpen}}false{{else}}true{{/if}}" {{#unless utilityDockOpen}}hidden inert{{/unless}}>
+    <div class="dqp-actor-switcher-wrap">
+      <button type="button" data-action="toggle-actor-switcher" aria-expanded="false" aria-label="{{localize 'DQP.Actor.Select'}}" data-tooltip="{{localize 'DQP.Actor.Select'}}"><i class="fa-solid fa-user-group" inert></i></button>
+      <div class="dqp-actor-switcher-controls" role="group" aria-label="{{localize 'DQP.Actor.Select'}}" hidden>
+        {{#each actorChoices}}<button type="button" class="dqp-actor-choice {{#if selected}}is-active{{/if}}" data-action="set-actor" data-actor-id="{{id}}" aria-pressed="{{selected}}"><img src="{{img}}" alt="" /><span>{{name}}</span><i class="fa-solid fa-check" inert></i></button>{{/each}}
+      </div>
+    </div>
+    <div class="dqp-theme-wrap">
+      <button type="button" data-action="toggle-theme" aria-expanded="false" aria-label="{{localize 'DQP.Theme.Title'}}" data-tooltip="{{localize 'DQP.Theme.Title'}}"><i class="fa-solid fa-palette" inert></i></button>
+      <div class="dqp-theme-controls" role="group" aria-label="{{localize 'DQP.Theme.Title'}}" hidden>
+        {{#each themes}}<button type="button" class="dqp-theme-choice {{#if active}}is-active{{/if}}" data-action="set-theme" data-theme="{{id}}" aria-pressed="{{active}}"><span class="dqp-theme-swatch" aria-hidden="true"></span><span>{{label}}</span><i class="fa-solid fa-check" inert></i></button>{{/each}}
+      </div>
+    </div>
+    <div class="dqp-scale-wrap">
+      <button type="button" data-action="toggle-scale" aria-expanded="false" aria-label="{{localize 'DQP.Scale.Title'}}" data-tooltip="{{localize 'DQP.Scale.Title'}}"><i class="fa-solid fa-magnifying-glass" inert></i></button>
+      <div class="dqp-scale-controls" hidden>
+        <button type="button" data-action="set-scale" data-scale="-5" aria-label="{{localize 'DQP.Scale.Smaller'}}">−</button>
+        <button type="button" data-action="set-scale" data-scale="reset" aria-label="{{localize 'DQP.Scale.Reset'}}" data-tooltip="{{localize 'DQP.Scale.Reset'}}">100%</button>
+        <button type="button" data-action="set-scale" data-scale="5" aria-label="{{localize 'DQP.Scale.Larger'}}">+</button>
+        <span class="dqp-scale-divider" aria-hidden="true"></span>
+        {{#each placements}}<button type="button" class="dqp-placement-choice {{#if active}}is-active{{/if}}" data-action="set-placement" data-placement="{{id}}" aria-pressed="{{active}}" aria-label="{{label}}" data-tooltip="{{label}}"><i class="{{icon}}" inert></i></button>{{/each}}
+      </div>
+    </div>
+    </div>
+    <button type="button" class="dqp-hud-toggle dqp-dock-hud-toggle is-on" data-action="toggle-hud" aria-pressed="true" aria-label="{{hudToggleLabel}}" data-tooltip="{{hudToggleLabel}}"><i class="{{hudToggleIcon}}" inert></i></button>
+    <button type="button" class="dqp-utility-toggle {{#if utilityDockOpen}}is-active{{/if}}" data-action="toggle-utilities" aria-expanded="{{utilityDockOpen}}" aria-controls="dqp-utility-controls" aria-label="{{localize 'DQP.Columns.Utility'}}" data-tooltip="{{localize 'DQP.Columns.Utility'}}"><i class="fa-solid fa-gear" inert></i></button>
+  </nav>
+
+  <article class="dqp-adversary-panel" data-adversary-id="{{adversary.id}}" data-token-id="{{adversary.tokenId}}">
+    <button type="button" class="dqp-adversary-portrait" data-action="open-sheet" aria-label="{{localize 'DQP.Adversary.OpenSheet'}}" data-tooltip="{{localize 'DQP.Adversary.OpenSheet'}}">
+      <img src="{{adversary.img}}" alt="{{adversary.name}}" />
+      <i class="fa-solid fa-scroll" inert></i>
+    </button>
+
+    <section class="dqp-adversary-summary">
+      <header>
+        <span>{{localize "DQP.Adversary.Selected"}}</span>
+        <strong data-tooltip="{{adversary.name}}">{{adversary.name}}</strong>
+      </header>
+      <div class="dqp-adversary-tags">
+        <span>{{adversary.tier}}</span><span>{{adversary.type}}</span>{{#if adversary.size}}<span>{{adversary.size}}</span>{{/if}}{{#if adversary.hordeHp}}<span>{{adversary.hordeHp}} HP/{{localize "DQP.Adversary.HordeUnit"}}</span>{{/if}}
+      </div>
+      <p data-tooltip="{{adversary.description}}">{{adversary.description}}</p>
+      <p class="dqp-adversary-motives" data-tooltip="{{adversary.motives}}"><b>{{localize "DQP.Adversary.Motives"}}:</b> {{adversary.motives}}</p>
+      {{#if adversary.experiences.length}}<div class="dqp-adversary-extras" aria-label="{{localize 'DQP.Experiences.Title'}}">{{#each adversary.experiences}}<span data-tooltip="{{description}}"><i class="fa-solid fa-feather-pointed" inert></i>{{name}} <b>{{value}}</b></span>{{/each}}</div>{{/if}}
+      {{#if adversary.effects.length}}<div class="dqp-adversary-extras dqp-adversary-effects" aria-label="{{localize 'DQP.Adversary.Effects'}}">{{#each adversary.effects}}<span data-tooltip="{{name}}">{{#if img}}<img src="{{img}}" alt="" />{{else}}<i class="fa-solid fa-sparkles" inert></i>{{/if}}{{name}}</span>{{/each}}</div>{{/if}}
+    </section>
+
+    <section class="dqp-adversary-mechanics" aria-label="{{localize 'DQP.Adversary.Statistics'}}">
+      <div class="dqp-adversary-statline">
+        <span><i class="fa-solid fa-dice-d20" inert></i><b>{{adversary.difficulty}}</b><small>{{localize "DQP.Adversary.Difficulty"}}</small></span>
+        <span><i class="fa-solid fa-crosshairs" inert></i><b>{{adversary.attackBonus}}</b><small>{{localize "DQP.Adversary.AttackBonus"}}</small></span>
+        {{#each adversary.thresholds}}<span><b>{{value}}</b><small>{{label}}</small></span>{{/each}}
+      </div>
+      <div class="dqp-adversary-resources">
+        {{#each adversary.resources}}
+          <div class="dqp-resource dqp-resource--{{key}}">
+            <div class="dqp-resource-label"><span><i class="{{icon}}" inert></i>{{label}}</span><strong>{{value}}/{{max}}</strong></div>
+            <div class="dqp-pips">{{#each pips}}<button type="button" class="dqp-pip {{#if active}}is-active{{/if}}" data-action="set-resource" data-path="{{../path}}" data-value="{{value}}" aria-pressed="{{active}}" aria-label="{{label}}" data-tooltip="{{label}}"></button>{{/each}}</div>
+          </div>
+        {{/each}}
+      </div>
+    </section>
+
+    <section class="dqp-adversary-actions" aria-label="{{localize 'DQP.Adversary.Actions'}}">
+      <header><strong>{{localize "DQP.Adversary.Actions"}}</strong><span>{{localize "DQP.Adversary.ActionHint"}}</span></header>
+      <div class="dqp-adversary-action-scroll">
+        {{#if adversary.attack}}
+          <button type="button" class="dqp-adversary-attack" data-action="use-adversary-attack" aria-label="{{adversary.attack.useLabel}}" data-tooltip="{{adversary.attack.useLabel}}">
+            <span class="dqp-item-image"><img src="{{adversary.attack.img}}" alt="" /></span>
+            <span class="dqp-item-copy"><strong>{{adversary.attack.name}}</strong><span>{{adversary.attack.meta}}</span></span>
+            <i class="fa-solid fa-play" inert></i>
+          </button>
+        {{/if}}
+        {{#each adversary.features}}{{> "modules/daggerheart-quick-panel/templates/partials/item-row.hbs"}}{{/each}}
+        {{#unless adversary.attack}}{{#unless adversary.features.length}}<span class="dqp-empty-inline">{{localize "DQP.Adversary.NoActions"}}</span>{{/unless}}{{/unless}}
+      </div>
+    </section>
+  </article>
+</section>
+{{/if}}
